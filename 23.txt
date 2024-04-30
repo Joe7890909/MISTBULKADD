@@ -1,0 +1,92 @@
+import json
+import requests
+import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import urllib3
+
+# Disable warnings for SSL Verification in testing phase
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def read_excel_column(filepath, column_name):
+    """Reads a specific column from an Excel file."""
+    df = pd.read_excel(filepath)
+    if column_name not in df.columns:
+        print(f"Column '{column_name}' not found.")
+        return []
+    return df[column_name].dropna().tolist()
+
+def post_request(url, headers, body):
+    """Sends a POST request and prints debug information."""
+    print(f"Making POST request to URL: {url}")
+    print(f"Headers: {headers}")
+    print(f"Body: {body}")
+    response = requests.post(url, headers=headers, json=body, verify=False)
+    if response.status_code != 200:
+        print(f"Error {response.status_code}: {response.text}")
+    return response
+
+def put_request(url, headers, body):
+    """Sends a PUT request and prints debug information."""
+    print(f"Making PUT request to URL: {url}")
+    print(f"Headers: {headers}")
+    print(f"Body: {body}")
+    response = requests.put(url, headers=headers, json=body, verify=False)
+    if response.status_code != 200:
+        print(f"Error {response.status_code}: {response.text}")
+    return response
+
+def get_request(url, headers):
+    """Sends a GET request and prints debug information."""
+    print(f"Making GET request to URL: {url}")
+    print(f"Headers: {headers}")
+    response = requests.get(url, headers=headers, verify=False)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Error {response.status_code}: {response.text}")
+    return None
+
+def main():
+    filepath = r"C:\BULKAPADD\KMGWYBMCWAPS.xlsx"
+    api_token = ""
+    site_name = "kmgwybmc"
+
+    names = read_excel_column(filepath, "Name")
+    macs = [mac.lower() for mac in read_excel_column(filepath, "MAC")]
+    site_str = ' '.join(read_excel_column(filepath, "Site"))
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_token}"
+    }
+
+    # Retrieve Site ID
+def getsiteID(site_name, api_token=""): 
+    url = "" 
+    headers = {"Content-Type": "application/json", "Authorization": f"Token {api_token}"} 
+    response = requests.get(url, headers=headers, verify=False) 
+    if response.status_code == 200: 
+        data = response.json() 
+        for item in data: 
+            if item["name"] == site_name: print(f"The ID for {site_name} is: {item['id']}") 
+            return item['id'] 
+    print("Site not found") 
+
+    # Assign Macs to Site
+    assign_url = ""
+    assign_body = [{"op": "assign", "site_id": siteID, "macs": macs}]
+    assign_response = put_request(assign_url, headers, assign_body)
+
+    # Adding devices to the site
+    with ThreadPoolExecutor() as executor:
+        futures = []
+        for name, mac in zip(names, macs):
+            url = f""
+            body = [{"mac": mac, "name": name}]
+            futures.append(executor.submit(post_request, url, headers, body))
+
+        for future in as_completed(futures):
+            print(future.result().json())
+
+if __name__ == "__main__":
+    main()
